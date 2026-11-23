@@ -79,7 +79,3 @@ npm test              # unit tests
 npx tsc --noEmit      # type check
 npm run lint          # lint
 ```
-
-## Team
-
-BAXU3923 Workshop 2 project.
