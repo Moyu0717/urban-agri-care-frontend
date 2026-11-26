@@ -4,24 +4,33 @@ import { router } from 'expo-router';
 import PersistedPhoto from '../components/PersistedPhoto';
 import { Button, Choice, Icon, Page, Pill, ui } from '../components/Ui';
 import { useLocalStore } from '../services/storage/LocalStore';
-import type { JournalEntry } from '../types/models';
+import { effective } from '../services/feedback/corrections';
 import { font, theme, type, lineHeight } from '../theme';
 import { formatDateTime, formatDate, LOCALE } from '../utils/dates';
+
+type Photo = { id: string; photoUri: string; createdAt: string; plantId?: string; scan?: { id: string; crop: string; condition: string } };
 
 export default function Gallery() {
   const { data } = useLocalStore();
   const [plantId, setPlantId] = useState('all');
-  const [open, setOpen] = useState<JournalEntry | null>(null);
-  const photos = data.journal.filter((entry) => entry.photoUri && (plantId === 'all' || entry.plantId === plantId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const plantName = (id: string) => data.plants.find((plant) => plant.id === id)?.name ?? 'Plant';
+  const [open, setOpen] = useState<Photo | null>(null);
+  // Journal photos plus the photo of every scan (scans not linked to a plant are listed by crop).
+  const all: Photo[] = [
+    ...data.journal.filter((entry) => entry.photoUri).map((entry) => ({ id: entry.id, photoUri: entry.photoUri!, createdAt: entry.createdAt, plantId: entry.plantId })),
+    ...data.diagnoses.filter((item) => item.photoUri && !data.journal.some((entry) => entry.photoUri === item.photoUri)).map(effective)
+      .map((item) => ({ id: item.id, photoUri: item.photoUri!, createdAt: item.createdAt, plantId: item.plantId, scan: { id: item.id, crop: item.crop, condition: item.condition } })),
+  ];
+  const photos = all.filter((photo) => plantId === 'all' || photo.plantId === plantId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const plantName = (id?: string) => data.plants.find((plant) => plant.id === id)?.name ?? 'Plant';
+  const tagFor = (photo: Photo) => (photo.plantId ? plantName(photo.plantId) : photo.scan?.crop ?? 'Plant');
   // Group by month, newest first.
-  const months: { key: string; label: string; items: JournalEntry[] }[] = [];
+  const months: { key: string; label: string; items: Photo[] }[] = [];
   photos.forEach((photo) => {
     const d = new Date(photo.createdAt); const key = `${d.getFullYear()}-${d.getMonth()}`;
     const group = months.find((m) => m.key === key);
     if (group) group.items.push(photo); else months.push({ key, label: d.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' }), items: [photo] });
   });
-  const withPhotos = data.plants.filter((plant) => data.journal.some((entry) => entry.plantId === plant.id && entry.photoUri));
+  const withPhotos = data.plants.filter((plant) => all.some((photo) => photo.plantId === plant.id));
 
   return <Page title="Gallery" back>
     {withPhotos.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filters}>
@@ -30,21 +39,22 @@ export default function Gallery() {
     </ScrollView> : null}
     {months.length ? months.map((month) => <View key={month.key} style={{ marginBottom: 12 }}>
       <Text style={[ui.label, { marginBottom: 10 }]}>{month.label}</Text>
-      <View style={s.grid}>{month.items.map((photo) => <Pressable key={photo.id} accessibilityRole="imagebutton" accessibilityLabel={`${plantName(photo.plantId)}, ${formatDate(photo.createdAt)}`} onPress={() => setOpen(photo)} style={({ pressed }) => [s.tile, pressed && { opacity: 0.75 }]}>
-        <PersistedPhoto uri={photo.photoUri!} height={110} cover />
-        {plantId === 'all' ? <View style={s.tag}><Text style={s.tagText} numberOfLines={1}>{plantName(photo.plantId)}</Text></View> : null}
+      <View style={s.grid}>{month.items.map((photo) => <Pressable key={photo.id} accessibilityRole="imagebutton" accessibilityLabel={`${tagFor(photo)}, ${formatDate(photo.createdAt)}`} onPress={() => setOpen(photo)} style={({ pressed }) => [s.tile, pressed && { opacity: 0.75 }]}>
+        <PersistedPhoto uri={photo.photoUri} height={110} cover />
+        {plantId === 'all' ? <View style={s.tag}><Text style={s.tagText} numberOfLines={1}>{tagFor(photo)}</Text></View> : null}
       </Pressable>)}</View>
     </View>) : <View style={s.empty}><Icon name="images-outline" size={30} color={theme.sage} /><Text style={s.emptyText}>No photos yet.</Text>{data.plants.length ? <Button label="Open Journal" icon="leaf-outline" onPress={() => router.push('/journal')} outline /> : null}</View>}
 
     <Modal visible={!!open} transparent animationType="fade" onRequestClose={() => setOpen(null)}>
       <Pressable style={s.backdrop} onPress={() => setOpen(null)} accessibilityLabel="Close photo">
         {open ? <Pressable style={s.viewer} onPress={() => {}}>
-          <PersistedPhoto uri={open.photoUri!} height={360} />
+          <PersistedPhoto uri={open.photoUri} height={360} />
           <View style={s.viewerInfo}>
-            <View style={{ flex: 1 }}><Text style={ui.serifMedium}>{plantName(open.plantId)}</Text><Text style={s.viewerDate}>{formatDateTime(open.createdAt)}</Text></View>
-            <Pill label="Journal photo" tone="neutral" icon="camera-outline" />
+            <View style={{ flex: 1 }}><Text style={ui.serifMedium}>{tagFor(open)}</Text><Text style={s.viewerDate}>{open.scan ? `${open.scan.condition} · ` : ''}{formatDateTime(open.createdAt)}</Text></View>
+            <Pill label={open.scan ? 'Scan photo' : 'Journal photo'} tone="neutral" icon={open.scan ? 'scan-outline' : 'camera-outline'} />
           </View>
-          <Button label="Open Plant Journal" icon="leaf-outline" onPress={() => { const id = open.plantId; setOpen(null); router.push({ pathname: '/journal', params: { plantId: id } }); }} />
+          {open.scan ? <Button label="Open Result" icon="document-text-outline" onPress={() => { const id = open.scan!.id; setOpen(null); router.push({ pathname: '/result', params: { id, view: '1' } }); }} /> : null}
+          {open.plantId ? <Button label="Open Plant Journal" icon="leaf-outline" outline={!!open.scan} onPress={() => { const id = open.plantId; setOpen(null); router.push({ pathname: '/journal', params: { plantId: id } }); }} /> : null}
           <Button label="Close" outline onPress={() => setOpen(null)} />
         </Pressable> : null}
       </Pressable>

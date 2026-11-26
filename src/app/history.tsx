@@ -85,7 +85,10 @@ import { cropLabels } from '../data/labels';
 import { cropIcon } from '../utils/crops';
 import { effective } from '../services/feedback/corrections';
 import { Dialog, useToast } from '../components/Motion';
+import PersistedPhoto from '../components/PersistedPhoto';
+import { isLowConfidence } from '../services/api/diagnose';
 
+// 'Uncertain' lists the scans the model was not sure about; they also show under Healthy or Unhealthy.
 type Filter = 'All' | Diagnosis['status'];
 const filters: Filter[] = ['All', 'Unhealthy', 'Healthy', 'Uncertain'];
 
@@ -131,7 +134,7 @@ export default function History() {
   const statusCount = (key: Filter) => key === 'All' ? all.length : all.filter((item) => item.status?.trim().toLowerCase() === key.toLowerCase()).length;
   const plantName = (id?: string) => data.plants.find((item) => item.id === id)?.name ?? '';
   const list = all.filter((item) =>
-    (filter === 'All' || item.status?.trim().toLowerCase() === filter.toLowerCase())
+    (filter === 'All' || (filter === 'Uncertain' ? isLowConfidence(item) : item.status?.trim().toLowerCase() === filter.toLowerCase()))
     && (crop === 'all' || item.crop === crop)
     && (!q || [item.crop, item.condition, plantName(item.plantId)].some((text) => text.toLowerCase().includes(q)))
   );
@@ -176,7 +179,7 @@ export default function History() {
                 <Text style={[s.badgeText, { color: tone.main }]}>{diagnosis.status}</Text>
               </View>
             </View>
-            <Text style={s.cardSub} numberOfLines={1}>{diagnosis.condition}</Text>
+            <Text style={s.cardSub} numberOfLines={1}>{diagnosis.condition}{isLowConfidence(diagnosis) ? ' · not sure' : ''}</Text>
             <Text style={s.meta} numberOfLines={1}>{formatWhen(diagnosis.createdAt)}{plant ? ` · ${plant}` : ''}</Text>
           </View>
           <Icon name="chevron-forward" size={18} color={theme.muted} />

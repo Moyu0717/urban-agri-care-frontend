@@ -1,10 +1,13 @@
+import { isHealthyLabel } from '../../data/labels';
 import { hasConsent } from '../../data/terms';
 import type { Correction, Diagnosis, LocalData } from '../../types/models';
 
 /** The result to show: the user's correction wins over the model's answer. */
 export function effective(diagnosis: Diagnosis): Diagnosis {
   const c = diagnosis.correction;
-  return c ? { ...diagnosis, label: c.label, condition: c.condition, status: c.status } : diagnosis;
+  if (c) return { ...diagnosis, label: c.label, condition: c.condition, status: c.status };
+  // Older scans were saved as 'Uncertain' when confidence was low; show them by their label instead.
+  return diagnosis.status === 'Uncertain' ? { ...diagnosis, status: isHealthyLabel(diagnosis.label) ? 'Healthy' : 'Unhealthy' } : diagnosis;
 }
 
 /** Saves a correction and drops guidance cached for the old answer, so care steps reload for the new one. */

@@ -3,8 +3,12 @@ import type { Diagnosis, DiagnosisStatus, Guidance } from '../../types/models';
 import { ApiError, requestJson } from './client';
 import { quickGuidance, treatmentMarkdown } from './guidance';
 
-/** Below this confidence the result is shown as Uncertain instead of a firm answer. */
+/** Below this confidence the result gets a low-confidence warning (it still shows the disease and its treatment). */
 export const UNCERTAIN_BELOW = 0.6;
+
+/** True when the model was not sure. A user correction overrides it. */
+export const isLowConfidence = (diagnosis: Pick<Diagnosis, 'confidence' | 'correction'>) =>
+  !diagnosis.correction && diagnosis.confidence !== undefined && diagnosis.confidence < UNCERTAIN_BELOW;
 
 export type DiagnoseResult = { label: string; confidence: number; modelVersion?: string; treatment?: unknown; treatmentAvailable: boolean };
 
@@ -23,15 +27,15 @@ export function adaptDiagnosis(value: unknown): DiagnoseResult {
   };
 }
 
-export function statusFor(label: string, confidence: number): DiagnosisStatus {
-  if (confidence < UNCERTAIN_BELOW) return 'Uncertain';
+/** Healthy or Unhealthy comes from the label; low confidence is a separate warning (see isLowConfidence). */
+export function statusFor(label: string): DiagnosisStatus {
   return isHealthyLabel(label) ? 'Healthy' : 'Unhealthy';
 }
 
 /** Builds the stored diagnosis, plus the quick guidance when the response already carried the treatment record. */
 export function toDiagnosis(result: DiagnoseResult, id: string, photoUri: string, createdAt = new Date().toISOString()): { diagnosis: Diagnosis; guidance?: Guidance } {
   const { crop, condition } = parseLabel(result.label);
-  const diagnosis: Diagnosis = { id, label: result.label, crop, condition, status: statusFor(result.label, result.confidence), confidence: result.confidence, createdAt, isMock: false, photoUri };
+  const diagnosis: Diagnosis = { id, label: result.label, crop, condition, status: statusFor(result.label), confidence: result.confidence, createdAt, isMock: false, photoUri };
   let guidance: Guidance | undefined;
   if (result.treatmentAvailable) {
     try { guidance = quickGuidance(diagnosis, treatmentMarkdown(result.treatment)); } catch { guidance = undefined; } // fall back to GET /treatments on the result screen

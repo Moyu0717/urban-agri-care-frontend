@@ -193,10 +193,11 @@ import { ApiError } from '../services/api/client';
 import { loadGuidance } from '../services/api/guidance';
 import { useLocalStore } from '../services/storage/LocalStore';
 import PlantPicker from '../components/PlantPicker';
+import PersistedPhoto from '../components/PersistedPhoto';
+import { isLowConfidence } from '../services/api/diagnose';
 import { resolvePlant, uid } from '../services/plants/resolve';
 import type { CarePlan, GuidanceMode } from '../types/models';
 import { font, shadow, statusColors, statusTone, theme, type, lineHeight } from '../theme';
-import PersistedPhoto from '../components/PersistedPhoto';
 
 export default function Result() {
   const { id, view } = useLocalSearchParams<{ id: string; view?: string }>();
@@ -301,6 +302,7 @@ function ResultBody({ id, viewOnly }: { id: string; viewOnly: boolean }) {
       <Text style={ui.serifTitle}>{displayCondition(diagnosis.condition)}</Text>
       <View style={{ height: 14 }} />
       <View style={s.facts}>{facts.map((fact) => <View key={fact.label} style={s.fact}><View style={[s.factIcon, { backgroundColor: tone.soft }]}><Icon name={fact.icon} size={17} color={tone.main} /></View><Text style={[s.factValue, fact.label === 'Status' && { color: tone.main }]} numberOfLines={1}>{fact.value}</Text><Text style={s.factLabel} numberOfLines={2}>{fact.label}</Text></View>)}</View>
+      {isLowConfidence(diagnosis) ? <View style={{ marginTop: 14 }}><Banner tone="warn" text='The model is not sure. Try a clearer photo, or tap "Not right?" to fix it.' /></View> : null}
       <View style={s.fixRow}>
         {diagnosis.correction ? <Pill label="Corrected by you" tone="neutral" icon="person-outline" /> : <View />}
         <Pressable accessibilityRole="button" onPress={openFix} hitSlop={8} style={s.fixBtn}><Icon name='create-outline' size={15} color={theme.muted} /><Text style={s.fixText}>{diagnosis.correction ? 'Change' : 'Not right?'}</Text></Pressable>

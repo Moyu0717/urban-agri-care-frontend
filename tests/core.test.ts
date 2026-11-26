@@ -42,7 +42,7 @@ test('backend error details and statuses map to distinct error codes', async () 
   assert.equal(errorForStatus(500).code, 'server');
 });
 test('diagnose response becomes a stored diagnosis with its quick guidance', async () => {
-  const { adaptDiagnosis, toDiagnosis, statusFor, mimeFor } = await import('../src/services/api/diagnose');
+  const { adaptDiagnosis, toDiagnosis, statusFor, isLowConfidence, mimeFor } = await import('../src/services/api/diagnose');
   const result = adaptDiagnosis({ success: true, label: 'Tomato___Early_blight', confidence: 0.82, model_version: 'v1', treatment: tomatoBlight, treatment_available: true, message: 'Diagnosis completed.' });
   const { diagnosis, guidance } = toDiagnosis(result, 'scan-1', 'file:///leaf.jpg', '2026-11-18T00:00:00Z');
   assert.deepEqual([diagnosis.crop, diagnosis.condition, diagnosis.status, diagnosis.isMock, diagnosis.photoUri], ['Tomato', 'Early blight', 'Unhealthy', false, 'file:///leaf.jpg']);
@@ -50,8 +50,15 @@ test('diagnose response becomes a stored diagnosis with its quick guidance', asy
   assert.equal(guidance?.mode, 'quick');
   const none = toDiagnosis(adaptDiagnosis({ label: 'Rice___Leaf_smut', confidence: 0.9, treatment: null, treatment_available: false }), 'scan-2', 'file:///b.png');
   assert.equal(none.guidance, undefined);
-  assert.equal(statusFor('Tomato___healthy', 0.85), 'Healthy');
-  assert.equal(statusFor('Tomato___healthy', 0.4), 'Uncertain');
+  assert.equal(statusFor('Tomato___healthy'), 'Healthy');
+  // Low confidence still counts as Unhealthy (so it shows the treatment and the Unhealthy filter), with a warning.
+  const low = toDiagnosis(adaptDiagnosis({ label: 'Potato___Early_blight', confidence: 0.42, treatment: tomatoBlight, treatment_available: true }), 'scan-3', 'file:///c.jpg');
+  assert.equal(low.diagnosis.status, 'Unhealthy');
+  assert.ok(low.guidance);
+  assert.equal(isLowConfidence(low.diagnosis), true);
+  assert.equal(isLowConfidence(diagnosis), false);
+  const { effective } = await import('../src/services/feedback/corrections');
+  assert.equal(effective({ ...low.diagnosis, status: 'Uncertain' }).status, 'Unhealthy');
   assert.throws(() => adaptDiagnosis({ label: 'Tomato___healthy', confidence: 87 }), ApiError);
   assert.throws(() => adaptDiagnosis({ confidence: 0.5 }), ApiError);
   assert.equal(mimeFor('file:///a/b.PNG'), 'image/png');
