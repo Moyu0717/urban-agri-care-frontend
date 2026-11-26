@@ -10,7 +10,10 @@ import { cropLabels } from '../data/labels';
 import { cropIcon } from '../utils/crops';
 import { effective } from '../services/feedback/corrections';
 import { Dialog, useToast } from '../components/Motion';
+import PersistedPhoto from '../components/PersistedPhoto';
+import { isLowConfidence } from '../services/api/diagnose';
 
+// 'Uncertain' lists the scans the model was not sure about; they also show under Healthy or Unhealthy.
 type Filter = 'All' | Diagnosis['status'];
 const filters: Filter[] = ['All', 'Unhealthy', 'Healthy', 'Uncertain'];
 
@@ -33,7 +36,7 @@ export default function History() {
   const crops = [...new Set([...Object.keys(cropLabels), ...all.map((item) => item.crop)])];
   const count = (name: string) => all.filter((item) => item.crop === name).length;
   const plantName = (id?: string) => data.plants.find((item) => item.id === id)?.name ?? '';
-  const list = all.filter((item) => (filter === 'All' || item.status === filter) && (crop === 'all' || item.crop === crop)
+  const list = all.filter((item) => (filter === 'All' || (filter === 'Uncertain' ? isLowConfidence(item) : item.status === filter)) && (crop === 'all' || item.crop === crop)
     && (!q || [item.crop, item.condition, plantName(item.plantId)].some((text) => text.toLowerCase().includes(q))));
   return <Page title="All Diagnoses" tab="history">
     <View style={s.search}>
@@ -53,7 +56,8 @@ export default function History() {
     {list.length ? list.map((diagnosis) => {
       const plant = plantName(diagnosis.plantId);
       return <Row key={diagnosis.id} accent={statusColors(diagnosis.status)} icon={diagnosis.status === 'Healthy' ? 'happy-outline' : diagnosis.status === 'Unhealthy' ? 'bug-outline' : 'help-circle-outline'}
-        title={diagnosis.crop} subtitle={diagnosis.condition}
+        thumb={diagnosis.photoUri ? <PersistedPhoto uri={diagnosis.photoUri} height={50} cover /> : undefined}
+        title={diagnosis.crop} subtitle={`${diagnosis.condition}${isLowConfidence(diagnosis) ? ' · not sure' : ''}`}
         meta={<Text style={s.meta} numberOfLines={1}>{formatWhen(diagnosis.createdAt)}{plant ? ` · ${plant}` : ''}</Text>}
         onPress={() => router.push({ pathname: '/result', params: { id: diagnosis.id, view: '1' } })} onLongPress={() => setDeleting(diagnosis)} />;
     }) : <Info>{data.diagnoses.length ? 'No match.' : 'No saved diagnoses yet.'}</Info>}

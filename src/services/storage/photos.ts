@@ -15,9 +15,8 @@ export async function choosePhoto(source: 'camera' | 'library'): Promise<string 
   const asset = result.assets[0];
   // Web has no app file system: keep the photo as a data URL so it survives a reload.
   if (typeof document !== 'undefined') {
-    if (asset.uri.startsWith('data:')) return asset.uri;
-    const blob = await (await fetch(asset.uri)).blob();
-    return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Could not read the photo.')); reader.readAsDataURL(blob); });
+    // Shrink it first: browser storage holds only ~5 MB, and a full phone photo would fill it in one scan.
+    return await shrinkForWeb(asset.uri);
   }
   const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/heic': 'heic', 'image/heif': 'heif', 'image/webp': 'webp' };
   const extension = extensions[asset.mimeType ?? ''] ?? asset.fileName?.match(/\.(jpe?g|png|heic|heif|webp)$/i)?.[1]?.toLowerCase() ?? 'jpg';
@@ -26,4 +25,23 @@ export async function choosePhoto(source: 'camera' | 'library'): Promise<string 
   const file = new File(dir, `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`);
   new File(asset.uri).copy(file);
   return file.uri;
+}
+
+/** Web only: redraws the photo at most WEB_MAX_SIDE px on its long side as a JPEG data URL (about 100-200 KB). */
+const WEB_MAX_SIDE = 1024;
+export async function shrinkForWeb(uri: string): Promise<string> {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not read the photo.'));
+    img.src = uri;
+  });
+  const scale = Math.min(1, WEB_MAX_SIDE / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not read the photo.');
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.8);
 }

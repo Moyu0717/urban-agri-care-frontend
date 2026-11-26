@@ -145,10 +145,10 @@ export function InputAction({ value, onChangeText, placeholder, action, onAction
   </View>;
 }
 
-export function Banner({ text, tone = 'demo' }: { text: string; tone?: 'demo' | 'error' | 'ok' }) {
-  const bg = tone === 'error' ? theme.dangerSoft : tone === 'ok' ? theme.primarySoft : theme.demoBackground;
-  const fg = tone === 'error' ? theme.danger : tone === 'ok' ? theme.primary : theme.demoText;
-  const icon: IconName = tone === 'error' ? 'alert-circle-outline' : tone === 'ok' ? 'checkmark-circle-outline' : 'flask-outline';
+export function Banner({ text, tone = 'demo' }: { text: string; tone?: 'demo' | 'error' | 'ok' | 'warn' }) {
+  const bg = tone === 'error' ? theme.dangerSoft : tone === 'ok' ? theme.primarySoft : tone === 'warn' ? statusColors('Uncertain').soft : theme.demoBackground;
+  const fg = tone === 'error' ? theme.danger : tone === 'ok' ? theme.primary : tone === 'warn' ? statusColors('Uncertain').main : theme.demoText;
+  const icon: IconName = tone === 'error' ? 'alert-circle-outline' : tone === 'warn' ? 'help-circle-outline' : tone === 'ok' ? 'checkmark-circle-outline' : 'flask-outline';
   return <FadeIn distance={8} style={[s.banner, { backgroundColor: bg }]}><Icon name={icon} size={17} color={fg} /><Text style={[s.bannerText, { color: fg }]}>{text}</Text></FadeIn>;
 }
 

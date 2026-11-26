@@ -12,6 +12,8 @@ import { ApiError } from '../services/api/client';
 import { loadGuidance } from '../services/api/guidance';
 import { useLocalStore } from '../services/storage/LocalStore';
 import PlantPicker from '../components/PlantPicker';
+import PersistedPhoto from '../components/PersistedPhoto';
+import { isLowConfidence } from '../services/api/diagnose';
 import { resolvePlant, uid } from '../services/plants/resolve';
 import type { CarePlan, GuidanceMode } from '../types/models';
 import { font, shadow, statusColors, statusTone, theme, type, lineHeight } from '../theme';
@@ -110,13 +112,15 @@ function ResultBody({ id, viewOnly }: { id: string; viewOnly: boolean }) {
     } catch (cause) { setFixError(`Could not save: ${String(cause)}`); }
   };
   return <Page back tint={tone.tint} right={viewOnly ? undefined : <RoundButton icon="time-outline" label="History" onPress={() => router.push('/history')} />} hero={<View style={[s.hero, { backgroundColor: tone.soft }]}>
-    <PopIn delay={120}><LeafArt size={140} icon={diagnosis.status === 'Healthy' ? 'leaf' : diagnosis.status === 'Unhealthy' ? 'bug-outline' : 'help-circle-outline'} colors={tone} /></PopIn>
+    {diagnosis.photoUri ? <View style={s.heroPhoto}><PersistedPhoto uri={diagnosis.photoUri} height={190} cover /></View>
+      : <PopIn delay={120}><LeafArt size={140} icon={diagnosis.status === 'Healthy' ? 'leaf' : diagnosis.status === 'Unhealthy' ? 'bug-outline' : 'help-circle-outline'} colors={tone} /></PopIn>}
     <View style={s.heroPill}><Pill label={diagnosis.status} tone={statusTone(diagnosis.status)} icon={diagnosis.status === 'Healthy' ? 'checkmark-circle-outline' : diagnosis.status === 'Unhealthy' ? 'alert-circle-outline' : 'help-circle-outline'} /></View>
   </View>}>
     <View style={s.sheet}>
       <Text style={ui.serifTitle}>{displayCondition(diagnosis.condition)}</Text>
       <View style={{ height: 14 }} />
       <View style={s.facts}>{facts.map((fact) => <View key={fact.label} style={s.fact}><View style={[s.factIcon, { backgroundColor: tone.soft }]}><Icon name={fact.icon} size={17} color={tone.main} /></View><Text style={[s.factValue, fact.label === 'Status' && { color: tone.main }]} numberOfLines={1}>{fact.value}</Text><Text style={s.factLabel} numberOfLines={2}>{fact.label}</Text></View>)}</View>
+      {isLowConfidence(diagnosis) ? <View style={{ marginTop: 14 }}><Banner tone="warn" text='The model is not sure. Try a clearer photo, or tap "Not right?" to fix it.' /></View> : null}
       <View style={s.fixRow}>
         {diagnosis.correction ? <Pill label="Corrected by you" tone="neutral" icon="person-outline" /> : <View />}
         <Pressable accessibilityRole="button" onPress={openFix} hitSlop={8} style={s.fixBtn}><Icon name='create-outline' size={15} color={theme.muted} /><Text style={s.fixText}>{diagnosis.correction ? 'Change' : 'Not right?'}</Text></Pressable>
@@ -155,7 +159,8 @@ function ResultBody({ id, viewOnly }: { id: string; viewOnly: boolean }) {
   </Page>;
 }
 const s = StyleSheet.create({
-  hero: { height: 190, borderRadius: 24, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: -28 },
+  hero: { height: 190, borderRadius: 24, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: -28, overflow: 'hidden' },
+  heroPhoto: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   heroPill: { position: 'absolute', top: 14, left: 14, right: 14, alignItems: 'center' },
   sheet: { backgroundColor: theme.surface, borderRadius: 22, padding: 16, marginBottom: 14, ...shadow },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },

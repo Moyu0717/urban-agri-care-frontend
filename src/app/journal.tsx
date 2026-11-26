@@ -43,7 +43,7 @@ export default function Journal() {
       await update((old) => ({ ...old, journal: [...old.journal, entry] })); setMessage('Photo copied and saved to this plant.');
     } catch (cause) { setMessage(`Photo was not saved: ${String(cause)}`); }
   };
-  const timeline = [...diagnoses.map((item) => ({ id: item.id, kind: 'diagnosis' as const, createdAt: item.createdAt, text: `Scan: ${item.condition}`, photoUri: undefined as string | undefined })), ...entries.filter((entry) => entry.kind !== 'task' || data.plans.some((plan) => plan.plantId === plantId && plan.tasks.some((task) => task.id === entry.taskId && task.done)))].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const timeline = [...diagnoses.map((item) => ({ id: item.id, kind: 'diagnosis' as const, createdAt: item.createdAt, text: `Scan: ${item.condition}`, photoUri: item.photoUri as string | undefined })), ...entries.filter((entry) => entry.kind !== 'task' || data.plans.some((plan) => plan.plantId === plantId && plan.tasks.some((task) => task.id === entry.taskId && task.done)))].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const latestPhoto = entries.find((entry) => entry.photoUri)?.photoUri;
   const kindIcon = (kind: string): IconName => ({ diagnosis: 'bug-outline', photo: 'camera-outline', task: 'checkmark-done-outline', observation: 'eye-outline', note: 'create-outline' } as Record<string, IconName>)[kind] ?? 'ellipse-outline';
   if (!plant) return <Page title="Plant Journal" tab="journal">
